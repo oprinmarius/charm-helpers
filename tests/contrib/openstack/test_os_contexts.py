@@ -329,6 +329,19 @@ CEPH_RELATION = {
     }
 }
 
+CEPH_REPLICATION_DEVICE_RELATION = {
+    'ceph-replication-device:0': {
+        'ceph-rbd-mirror/0': {
+            'rbd-mirroring-mode': 'pool',
+            'private-address': 'ceph_node1',
+            'auth': 'foo',
+            'key': 'bar',
+            'rbd-pool': 'test',
+            'pool-type': 'replicated'
+        }
+    }
+}
+
 CEPH_RELATION_WITH_PUBLIC_ADDR = {
     'ceph:0': {
         'ceph/0': {
@@ -1584,6 +1597,30 @@ class ContextTests(unittest.TestCase):
         self.assertEquals(result, {})
 
     @patch.object(context, 'config')
+    def test_ceph_rel_replication_device(self, mock_config):
+        '''Test ceph context with missing related units'''
+        config_dict = {'use-syslog': True}
+
+        def fake_config(key):
+            return config_dict.get(key)
+
+        mock_config.side_effect = fake_config
+        relation = FakeRelation(relation_data=CEPH_REPLICATION_DEVICE_RELATION)
+        self.relation_get.side_effect = relation.get
+        self.relation_ids.side_effect = relation.relation_ids
+        self.related_units.side_effect = relation.relation_units
+        ceph = context.CephContext(ceph_relation='ceph-replication-device')
+        result = ceph()
+        expected = {
+            'auth': 'foo',
+            'key': 'bar',
+            'mon_hosts': 'ceph_node1',
+            'use_syslog': 'true'
+        }
+        self.assertEquals(result, expected)
+        self.assertEquals(ceph.interfaces, ['ceph-replication-device'])
+
+    @patch.object(context, 'config')
     @patch('os.path.isdir')
     @patch('os.mkdir')
     @patch.object(context, 'ensure_packages')
@@ -1861,7 +1898,7 @@ class ContextTests(unittest.TestCase):
         config_dict = {
             'use-syslog': True,
             'rbd-mirroring-mode': 'image'
-            }
+        }
 
         def fake_config(key):
             return config_dict.get(key)
